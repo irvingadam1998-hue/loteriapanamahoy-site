@@ -2,28 +2,35 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "@phosphor-icons/react/dist/ssr/ArrowLeft";
 import { ArrowUpRight } from "@phosphor-icons/react/dist/ssr/ArrowUpRight";
-import { Clock } from "@phosphor-icons/react/dist/ssr/Clock";
 import { getDraw, getDraws } from "@/lib/db";
-import { KINDS, dateLabel, money } from "@/lib/lottery";
+import { KINDS, checkerDrawData, dateLabel, money } from "@/lib/lottery";
 import { Checker } from "@/components/checker";
-import { NumberBalls } from "@/components/draw-card";
+import { DrawTicket } from "@/components/draw-ticket";
+import { DrawViews } from "@/components/draw-views";
 import { AdSlot } from "@/components/ads";
+import { getPublicSiteUrl, publicSocialMetadata } from "@/lib/seo";
 export const dynamic = "force-dynamic";
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const draw = await getDraw((await params).id);
+  const { id } = await params;
+  const draw = await getDraw(id);
+  const title = draw
+    ? `${draw.title || KINDS[draw.kind].name} · ${dateLabel(draw.date)}`
+    : "Sorteo no encontrado";
+  const description = draw
+    ? `Resultados del sorteo ${draw.number} de ${draw.title || KINDS[draw.kind].name}, publicado el ${dateLabel(draw.date)}. Comprueba tu billete o chance y confirma en la LNB.`
+    : "No encontramos este sorteo. Explora los resultados de lotería publicados en Panamá.";
   return {
-    alternates: { canonical: `/resultados/${(await params).id}` },
-    title: draw
-      ? `${draw.title || KINDS[draw.kind].name} · ${dateLabel(draw.date)}`
-      : "Sorteo no encontrado",
-    description: draw
-      ? `Consulta los números del sorteo ${draw.number} de ${draw.title || KINDS[draw.kind].name}, publicado el ${dateLabel(draw.date)}. Revisa tu billete o chance gratis.`
-      : "No encontramos este sorteo. Explora los resultados de lotería publicados en Panamá.",
-    ...(draw?.isDemo ? { robots: { index: false, follow: false } } : {}),
+    alternates: { canonical: `/resultados/${id}` },
+    title,
+    description,
+    ...publicSocialMetadata(title, description, `/resultados/${id}`),
+    ...(!draw || draw.isDemo || draw.status !== "published"
+      ? { robots: { index: false, follow: false } }
+      : {}),
   };
 }
 export default async function DrawPage({
@@ -33,8 +40,28 @@ export default async function DrawPage({
 }) {
   const draw = await getDraw((await params).id);
   if (!draw) notFound();
+  const drawUrl = `${getPublicSiteUrl().origin}/resultados/${draw.id}`;
+  const pageSchema = {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    name: `${draw.title || KINDS[draw.kind].name} · ${dateLabel(draw.date)}`,
+    description: `Resultado informativo del sorteo ${draw.number}. Confirma los premios en el sitio oficial de la LNB.`,
+    url: drawUrl,
+    inLanguage: "es-PA",
+    isPartOf: {
+      "@type": "WebSite",
+      name: "loteriapanamahoy.site",
+      url: getPublicSiteUrl().origin,
+    },
+  };
   return (
     <main id="contenido" className="container page-content">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(pageSchema).replace(/</g, "\\u003c"),
+        }}
+      />
       <Link href="/resultados" className="breadcrumb">
         <ArrowLeft size={14} weight="duotone" /> Todos los resultados
       </Link>
@@ -49,6 +76,7 @@ export default async function DrawPage({
         <p>
           {dateLabel(draw.date)} · {draw.time} · Hora de Panamá
         </p>
+        {!draw.isDemo && <DrawViews id={draw.id} initialViews={draw.views || 0} />}
       </div>
       {draw.isDemo && (
         <p className="notice notice-amber">
@@ -56,46 +84,25 @@ export default async function DrawPage({
           oficiales.
         </p>
       )}
+      {!draw.isDemo && draw.status === "published" && (
+        <p className="notice" role="note">
+          Resultado informativo publicado por loteriapanamahoy.site. No somos la
+          LNB ni estamos afiliados a ella. Confirma siempre el resultado y
+          cualquier premio en la{" "}
+          <a
+            href="https://www.lnb.gob.pa/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            web oficial de la LNB
+          </a>
+          .
+        </p>
+      )}
       <div className="detail-grid">
         <div>
           <section className="detail-results" aria-label="Números ganadores">
-            {draw.status === "scheduled" ? (
-              <div className="pending-result">
-                <Clock size={35} weight="duotone" />
-                <h2>Esperando el sorteo</h2>
-                <p>Publicaremos los números después de revisar la fuente.</p>
-              </div>
-            ) : (
-              <>
-                <h2>El resultado del sorteo</h2>
-                <div className="first-prize">
-                  <span className="eyebrow">PRIMER PREMIO</span>
-                  <NumberBalls number={draw.first} />
-                </div>
-                <div className="other-prizes">
-                  <div>
-                    <span>2.º premio</span>
-                    <strong>{draw.second}</strong>
-                  </div>
-                  <span className="prize-divider" />
-                  <div>
-                    <span>3.º premio</span>
-                    <strong>{draw.third}</strong>
-                  </div>
-                </div>
-                <div className="draw-extras">
-                  <span>
-                    Letras <b>{draw.letters || "—"}</b>
-                  </span>
-                  <span>
-                    Serie <b>{draw.series || "—"}</b>
-                  </span>
-                  <span>
-                    Folio <b>{draw.folio || "—"}</b>
-                  </span>
-                </div>
-              </>
-            )}
+            <DrawTicket draw={draw} variant="detail" />
           </section>
           <div className="detail-source">
             <span>
@@ -129,7 +136,7 @@ export default async function DrawPage({
               {draw.isDemo
                 ? "Ejemplos ilustrativos para probar el comprobador."
                 : draw.rulesVerified
-                  ? "Revisado por el administrador. Confirma el cobro con la LNB."
+                  ? "Plan revisado. Confirma el cobro con la LNB."
                   : "Pendiente de verificación completa."}{" "}
               Dentro de un mismo grupo se aplica el premio mayor; los distintos
               grupos se suman.
@@ -174,7 +181,7 @@ export default async function DrawPage({
           </section>
         </div>
         {draw.status === "published" ? (
-          <Checker draws={await getDraws()} initialDrawId={draw.id} />
+          <Checker draws={checkerDrawData(await getDraws())} initialDrawId={draw.id} />
         ) : (
           <AdSlot position="sidebar" />
         )}

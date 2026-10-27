@@ -3,12 +3,16 @@ import { ShieldCheck } from "@phosphor-icons/react/dist/ssr/ShieldCheck";
 import { ResultsBrowser } from "@/components/results-browser";
 import { AdSlot } from "@/components/ads";
 import { getDraws } from "@/lib/db";
+import { publicSocialMetadata } from "@/lib/seo";
 export const dynamic = "force-dynamic";
+const resultsTitle = "Resultados de la lotería de Panamá";
+const resultsDescription =
+  "Consulta resultados recientes de Dominical, Miércolito, Gordito del Zodíaco y otros sorteos. Revisa los datos con la fuente oficial de la LNB.";
 export const metadata = {
   alternates: { canonical: "/resultados" },
-  title: "Resultados de lotería en Panamá",
-  description:
-    "Consulta el historial de resultados de la Lotería Nacional de Beneficencia de Panamá por sorteo, fecha y número ganador.",
+  title: resultsTitle,
+  description: resultsDescription,
+  ...publicSocialMetadata(resultsTitle, resultsDescription, "/resultados"),
 };
 export default async function ResultsPage() {
   const draws = await getDraws();

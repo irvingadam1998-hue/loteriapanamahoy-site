@@ -278,37 +278,39 @@ test("first digits and last digits can be grouped or accumulated explicitly", ()
     800,
   );
 });
-test("Dominical billete follows each separate derivation line on the ticket back", () => {
+test("Dominical billete pays only the most precise matching suffix", () => {
   const source = demoDraws()[0];
   const rules = defaultRules("dominical");
   const realDraw = {
     ...source,
     isDemo: false,
-    first: "3460",
+    first: "0675",
     second: "5903",
     third: "6831",
     rulesVerified: true,
     rules,
   };
-  const result = checkTicket(realDraw, { ...input, number: "3460" });
-  // B/. 2,000 exact + 50 + 50 + 3 + 3 + 1 derivations.
-  assert.equal(result.totalCents, 210700);
-  assert.equal(result.matches.length, 6);
+  const result = checkTicket(realDraw, { ...input, number: "3675" });
+  assert.equal(result.totalCents, 5000);
+  assert.deepEqual(result.matches, [
+    { label: "Primer premio · últimas 3 cifras", amountCents: 5000 },
+  ]);
 });
-test("legacy default groups still pay every separate printed derivation", () => {
+test("legacy default prize groups also suppress shorter suffix derivations", () => {
   const source = demoDraws()[0];
   const realDraw = {
     ...source,
     isDemo: false,
-    first: "3460",
+    first: "0675",
     rulesVerified: true,
     rules: defaultRules("dominical").map((r) => ({
       ...r,
       group: `${r.ticket}-${r.prize}`,
     })),
   };
-  const result = checkTicket(realDraw, { ...input, number: "3460" });
-  assert.equal(result.totalCents, 210700);
+  const result = checkTicket(realDraw, { ...input, number: "3675" });
+  assert.equal(result.totalCents, 5000);
+  assert.equal(result.matches.length, 1);
 });
 test("approximation boundaries do not wrap unless specifically configured", () => {
   const approx = {

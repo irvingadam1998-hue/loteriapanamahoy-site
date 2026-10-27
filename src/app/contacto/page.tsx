@@ -1,13 +1,19 @@
 import { ArrowUpRight } from "@phosphor-icons/react/dist/ssr/ArrowUpRight";
+import { publicSocialMetadata } from "@/lib/seo";
+const contactTitle = "Contacto y soporte";
+const contactDescription =
+  "Contacta a loteriapanamahoy.site para reportar errores o pedir soporte sobre las consultas de resultados.";
 export const metadata = {
   alternates: { canonical: "/contacto" },
-  title: "Contacto",
-  description:
-    "Reporta un error en los resultados de lotería publicados en Suerte Panamá o consulta los canales oficiales de la LNB.",
+  title: contactTitle,
+  description: contactDescription,
+  ...publicSocialMetadata(contactTitle, contactDescription, "/contacto"),
 };
 export default function ContactPage() {
-  const email = process.env.NEXT_PUBLIC_CONTACT_EMAIL;
-  const valid = email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const email =
+    process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim() ||
+    "soporte@loteriapanamahoy.site";
+  const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   return (
     <main id="contenido" className="container page-content">
       <article className="article-layout">
@@ -29,9 +35,8 @@ export default function ContactPage() {
             </a>
           ) : (
             <p className="notice">
-              El canal de contacto de Suerte Panamá estará disponible
-              próximamente. Mientras tanto, puedes verificar los resultados en
-              la fuente oficial.
+              Para soporte y consultas, escríbenos a{" "}
+              <a href={`mailto:${email}`}>{email}</a>.
             </p>
           )}
           <h2>Consultas sobre cobro de premios</h2>
@@ -47,10 +52,19 @@ export default function ContactPage() {
             </a>
             .
           </p>
+          <h2>Privacidad y datos personales</h2>
+          <p>
+            Para ejercer derechos sobre tus datos, escribe al correo de soporte
+            indicando el derecho solicitado y cómo podemos verificar tu
+            solicitud. No incluyas contraseñas, datos bancarios ni información
+            de terceros. Consulta nuestra {" "}
+            <a href="/privacidad">política de privacidad</a>.
+          </p>
           <h2>Publicidad</h2>
           <p>
-            Suerte Panamá dispone de espacios identificados para anunciantes. Si
-            el correo de contacto ya está disponible, puedes escribirnos con el
+            loteriapanamahoy.site dispone de espacios identificados para
+            anunciantes. Escríbenos a{" "}
+            <a href={`mailto:${email}?subject=Publicidad`}>{email}</a> con el
             asunto «Publicidad».
           </p>
         </div>

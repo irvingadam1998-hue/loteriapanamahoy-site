@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { getPublicSiteUrl, isPublicIndexingEnabled } from "@/lib/seo";
+export const dynamic = "force-dynamic";
 export default function robots(): MetadataRoute.Robots {
   const url = getPublicSiteUrl().origin;
   const indexable = isPublicIndexingEnabled();
@@ -8,7 +9,7 @@ export default function robots(): MetadataRoute.Robots {
       userAgent: "*",
       ...(!indexable
         ? { disallow: "/" }
-        : { allow: "/", disallow: ["/admin", "/api/"] }),
+        : { allow: "/", disallow: "/api/" }),
     },
     ...(indexable ? { sitemap: `${url}/sitemap.xml` } : {}),
   };

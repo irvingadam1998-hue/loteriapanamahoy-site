@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Ticket } from "@phosphor-icons/react/dist/ssr/Ticket";
+import Image from "next/image";
 export function Clover({ className = "" }: { className?: string }) {
   return (
     <svg
@@ -28,15 +28,22 @@ export function Brand({ light = false }: { light?: boolean }) {
     <Link
       href="/"
       className={`brand ${light ? "brand-light" : ""}`}
-      aria-label="Suerte Panamá, inicio"
+      aria-label="loteriapanamahoy.site, inicio"
     >
-      <span className="brand-symbol">
-        <Ticket size={25} weight="duotone" />
+      <span className="brand-logo">
+        <Image
+          src="/logo-sorteos-panama.png"
+          alt=""
+          width={52}
+          height={52}
+          priority
+        />
       </span>
       <span>
-        suerte<span className="brand-country">PANAMÁ</span>
+        <span className="brand-name">
+          loteriapanamahoy<span className="brand-domain-suffix">.site</span>
+        </span>
       </span>
-      <span className="brand-dot">.</span>
     </Link>
   );
 }

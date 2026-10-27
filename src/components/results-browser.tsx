@@ -15,13 +15,25 @@ export function ResultsBrowser({
   compact?: boolean;
 }) {
   const [kind, setKind] = useState<Kind | "all">("all");
+  const [year, setYear] = useState("");
+  const [month, setMonth] = useState("");
   const [date, setDate] = useState("");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
+  const publishedDraws = draws.filter((draw) => draw.status === "published");
+  const years = Array.from(new Set(publishedDraws.map((draw) => draw.date.slice(0, 4)))).sort((a, b) => b.localeCompare(a));
+  const months = Array.from(
+    new Set(publishedDraws.filter((draw) => !year || draw.date.startsWith(`${year}-`)).map((draw) => draw.date.slice(5, 7))),
+  ).sort((a, b) => b.localeCompare(a));
+  const availableDates = Array.from(
+    new Set(publishedDraws.filter((draw) => (!year || draw.date.startsWith(`${year}-`)) && (!month || draw.date.slice(5, 7) === month)).map((draw) => draw.date)),
+  ).sort((a, b) => b.localeCompare(a));
   const filtered = draws.filter(
     (d) =>
       d.status === "published" &&
       (kind === "all" || d.kind === kind) &&
+      (!year || d.date.startsWith(`${year}-`)) &&
+      (!month || d.date.slice(5, 7) === month) &&
       (!date || d.date === date) &&
       (!query ||
         d.number.toLowerCase().includes(query.toLowerCase()) ||
@@ -94,24 +106,31 @@ export function ResultsBrowser({
               }}
             />
           </div>
-          <label className="date-filter">
-            <CalendarBlank size={16} weight="duotone" />
-            <span>Fecha</span>
-            <input
-              type="date"
-              aria-label="Filtrar por fecha"
-              value={date}
-              onChange={(e) => {
-                setDate(e.target.value);
-                setPage(1);
-              }}
-            />
-          </label>
-          {(query || date) && (
+          <div className="history-date-filter" aria-label="Filtrar resultados por fecha">
+            <CalendarBlank size={17} weight="duotone" />
+            <label className="sr-only" htmlFor="results-year">Año</label>
+            <select id="results-year" value={year} onChange={(e) => { setYear(e.target.value); setMonth(""); setDate(""); setPage(1); }}>
+              <option value="">Todos los años</option>
+              {years.map((value) => <option key={value} value={value}>{value}</option>)}
+            </select>
+            <label className="sr-only" htmlFor="results-month">Mes</label>
+            <select id="results-month" value={month} disabled={!year} onChange={(e) => { setMonth(e.target.value); setDate(""); setPage(1); }}>
+              <option value="">Todos los meses</option>
+              {months.map((value) => <option key={value} value={value}>{new Intl.DateTimeFormat("es-PA", { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(2020, Number(value) - 1, 1)))}</option>)}
+            </select>
+            <label className="sr-only" htmlFor="results-day">Día con resultados</label>
+            <select id="results-day" value={date} disabled={!year || !month} onChange={(e) => { setDate(e.target.value); setPage(1); }}>
+              <option value="">Todos los días</option>
+              {availableDates.map((value) => <option key={value} value={value}>{new Intl.DateTimeFormat("es-PA", { day: "numeric", weekday: "short", timeZone: "UTC" }).format(new Date(`${value}T12:00:00Z`))}</option>)}
+            </select>
+          </div>
+          {(query || year || month || date) && (
             <button
               className="text-button"
               onClick={() => {
                 setQuery("");
+                setYear("");
+                setMonth("");
                 setDate("");
               }}
             >

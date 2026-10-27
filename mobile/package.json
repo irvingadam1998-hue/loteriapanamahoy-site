@@ -1,0 +1,34 @@
+{
+  "name": "loteriapanamahoy-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "react-native start",
+    "android": "JAVA_HOME=/usr/lib/jvm/java-17-openjdk react-native run-android --active-arch-only",
+    "android:apk": "cd android && JAVA_HOME=/usr/lib/jvm/java-17-openjdk ./gradlew -PreactNativeArchitectures=arm64-v8a assembleDebug",
+    "android:release": "bash ../scripts/build-android-release.sh",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20.19.4"
+  },
+  "dependencies": {
+    "@react-native-ml-kit/text-recognition": "^2.0.0",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-nitro-image": "^0.15.2",
+    "react-native-nitro-modules": "^0.37.1",
+    "react-native-safe-area-context": "^5.7.0",
+    "react-native-vision-camera": "^5.0.11"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@react-native-community/cli": "20.1.0",
+    "@react-native-community/cli-platform-android": "20.1.0",
+    "@react-native/babel-preset": "0.86.3",
+    "@react-native/metro-config": "0.86.3",
+    "@react-native/typescript-config": "0.86.3",
+    "@types/react": "~19.2.0",
+    "typescript": "~5.8.3"
+  }
+}

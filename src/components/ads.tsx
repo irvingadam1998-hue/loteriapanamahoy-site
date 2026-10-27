@@ -2,14 +2,15 @@
 import Script from "next/script";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { Cookie } from "@phosphor-icons/react/dist/ssr/Cookie";
 import { SlidersHorizontal } from "@phosphor-icons/react/dist/ssr/SlidersHorizontal";
 const client = process.env.NEXT_PUBLIC_ADSENSE_CLIENT;
 const validClient = /^ca-pub-\d{16}$/.test(client || "");
 declare global {
   interface Window {
-    adsbygoogle?: Record<string, unknown>[];
+    adsbygoogle?: (Record<string, unknown>[] & {
+      requestNonPersonalizedAds?: number;
+    });
   }
 }
 function readChoice() {
@@ -20,7 +21,6 @@ function readChoice() {
   }
 }
 export function AdProvider() {
-  const pathname = usePathname();
   const [choice, setChoice] = useState<string | null>("pending");
   useEffect(() => {
     setChoice(readChoice());
@@ -35,7 +35,7 @@ export function AdProvider() {
     window.dispatchEvent(new Event("suerte-consent"));
     if (value === "denied") window.location.reload();
   }
-  if (!validClient || pathname.startsWith("/admin")) return null;
+  if (!validClient) return null;
   return (
     <>
       {choice === "accepted" && (
@@ -43,8 +43,10 @@ export function AdProvider() {
           async
           src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${client}`}
           crossOrigin="anonymous"
-          strategy="afterInteractive"
+          strategy="lazyOnload"
           onReady={() => {
+            const queue = (window.adsbygoogle = window.adsbygoogle || []);
+            queue.requestNonPersonalizedAds = 1;
             window.dispatchEvent(new Event("suerte-ads-ready"));
           }}
         />
@@ -56,9 +58,9 @@ export function AdProvider() {
         >
           <Cookie size={24} weight="duotone" />
           <div>
-            <strong>Tú eliges tus cookies</strong>
+            <strong>Publicidad y vistas</strong>
             <p>
-              Podemos cargar anuncios de Google para mantener gratuita la web.{" "}
+              Una cookie cuenta las vistas de cada sorteo. También puedes permitir anuncios no personalizados de Google para ayudar a mantener gratuita la web.{" "}
               <Link href="/privacidad">Ver privacidad</Link>.
             </p>
           </div>
@@ -66,13 +68,13 @@ export function AdProvider() {
             className="button button-outline"
             onClick={() => choose("denied")}
           >
-            Solo necesarias
+            Sin anuncios
           </button>
           <button
             className="button button-dark"
             onClick={() => choose("accepted")}
           >
-            Aceptar publicidad
+            Permitir anuncios
           </button>
         </aside>
       )}

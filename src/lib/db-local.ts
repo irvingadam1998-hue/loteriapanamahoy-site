@@ -1,9 +1,8 @@
 import Database from "libsql";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
 import { demoDraws } from "./demo";
-import type { Draw, DrawInput } from "./lottery";
+import type { Draw } from "./lottery";
 
 // This driver opens the existing SQLite file without requiring node:sqlite.
 // Use a separate cache key so hot reload cannot reuse the previous driver.
@@ -18,23 +17,21 @@ function db() {
   );
   mkdirSync(path.dirname(filename), { recursive: true });
   const connection = new Database(filename);
-  connection.exec(`PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;
+  connection.exec(`PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON;
     CREATE TABLE IF NOT EXISTS draws (id TEXT PRIMARY KEY, kind TEXT NOT NULL, date TEXT NOT NULL, number TEXT NOT NULL, status TEXT NOT NULL, body TEXT NOT NULL, UNIQUE(kind, number));
-    CREATE TABLE IF NOT EXISTS attempts (key TEXT PRIMARY KEY, count INTEGER NOT NULL, reset INTEGER NOT NULL);
-    CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, expires INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS draw_visitors (draw_id TEXT NOT NULL REFERENCES draws(id) ON DELETE CASCADE, visitor_hash TEXT NOT NULL, PRIMARY KEY(draw_id, visitor_hash));
     CREATE INDEX IF NOT EXISTS draws_date ON draws(date DESC);`);
+  const columns = connection.prepare("PRAGMA table_info(draws)").all() as { name: string }[];
+  if (!columns.some((column) => column.name === "views"))
+    connection.exec("ALTER TABLE draws ADD COLUMN views INTEGER NOT NULL DEFAULT 0");
   globalDb.suerteLibsqlDb = connection;
   return connection;
 }
-export function getDraws(admin = false): Draw[] {
+export function getDraws(): Draw[] {
   const rows = db()
-    .prepare(
-      admin
-        ? "SELECT body FROM draws ORDER BY date DESC"
-        : "SELECT body FROM draws WHERE status IN ('published', 'scheduled') ORDER BY date DESC",
-    )
-    .all() as { body: string }[];
-  const real = rows.map((r) => JSON.parse(r.body) as Draw);
+    .prepare("SELECT body, views FROM draws WHERE status IN ('published', 'scheduled') ORDER BY date DESC")
+    .all() as { body: string; views: number }[];
+  const real = rows.map((r) => ({ ...(JSON.parse(r.body) as Draw), views: r.views }));
   // Demo data is virtual, so disabling it removes it from every public/API view.
   const demo = process.env.DEMO_DATA === "true" ? demoDraws() : [];
   return [...real, ...demo].sort((a, b) => b.date.localeCompare(a.date));
@@ -42,56 +39,12 @@ export function getDraws(admin = false): Draw[] {
 export function getDraw(id: string) {
   return getDraws().find((draw) => draw.id === id);
 }
-export function saveDraw(input: DrawInput): Draw {
-  const existing = input.id
-    ? (db().prepare("SELECT body FROM draws WHERE id = ?").get(input.id) as
-        { body: string } | undefined)
-    : undefined;
-  if (input.id && !existing)
-    throw new Error("No se encontró el sorteo para editar.");
-  const now = new Date().toISOString();
-  const draw: Draw = {
-    ...input,
-    id: input.id || randomUUID(),
-    isDemo: false,
-    createdAt: existing ? JSON.parse(existing.body).createdAt : now,
-    updatedAt: now,
-  };
-  db()
-    .prepare(
-      "INSERT INTO draws(id, kind, date, number, status, body) VALUES(?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET kind=excluded.kind, date=excluded.date, number=excluded.number, status=excluded.status, body=excluded.body",
-    )
-    .run(
-      draw.id,
-      draw.kind,
-      draw.date,
-      draw.number,
-      draw.status,
-      JSON.stringify(draw),
-    );
-  return draw;
-}
-export function consumeAttempt(key: string, limit: number, duration: number) {
-  const now = Date.now();
-  db().prepare("DELETE FROM attempts WHERE reset < ?").run(now);
-  const row = db()
-    .prepare(
-      "INSERT INTO attempts(key,count,reset) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET count=count+1 RETURNING count",
-    )
-    .get(key, now + duration) as { count: number };
-  return row.count <= limit;
-}
-export function createSession(id: string, expires: number) {
-  db().prepare("DELETE FROM sessions WHERE expires < ?").run(Date.now());
-  db()
-    .prepare("INSERT INTO sessions(id, expires) VALUES(?, ?)")
-    .run(id, expires);
-}
-export function hasSession(id: string) {
-  return !!db()
-    .prepare("SELECT id FROM sessions WHERE id=? AND expires>?")
-    .get(id, Date.now());
-}
-export function removeSession(id: string) {
-  db().prepare("DELETE FROM sessions WHERE id=?").run(id);
+export function recordDrawView(id: string, visitorHash: string): number | null {
+  const connection = db();
+  const draw = connection.prepare("SELECT status FROM draws WHERE id=?").get(id) as {status: string} | undefined;
+  if (!draw || !["published", "scheduled"].includes(draw.status)) return null;
+  const insert = connection.prepare("INSERT OR IGNORE INTO draw_visitors(draw_id,visitor_hash) VALUES(?,?)").run(id, visitorHash);
+  if (insert.changes) connection.prepare("UPDATE draws SET views=views+1 WHERE id=?").run(id);
+  const result = connection.prepare("SELECT views FROM draws WHERE id=?").get(id) as {views: number};
+  return result.views;
 }

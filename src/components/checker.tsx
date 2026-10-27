@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Badge, Button, Select } from "@radix-ui/themes";
 import { ArrowRight } from "@phosphor-icons/react/dist/ssr/ArrowRight";
 import { Check } from "@phosphor-icons/react/dist/ssr/Check";
 import { CaretDown } from "@phosphor-icons/react/dist/ssr/CaretDown";
@@ -14,13 +13,13 @@ import { X } from "@phosphor-icons/react/dist/ssr/X";
 import { Question } from "@phosphor-icons/react/dist/ssr/Question";
 import {
   type CheckResult,
-  type Draw,
+  type CheckerDraw,
   type Kind,
   KINDS,
   dateLabel,
   money,
 } from "@/lib/lottery";
-import { DrawIcon } from "./draw-card";
+import { DrawIcon } from "./draw-ticket";
 
 function GiftAnimation() {
   return (
@@ -37,7 +36,7 @@ function GiftAnimation() {
           style={
             {
               "--i": i,
-              "--color": ["#c7ed75", "#9584e9", "#f8ba72", "#319279"][i % 4],
+              "--color": ["var(--brand-tone-3)", "var(--brand-tone-5)", "var(--brand-tone-3)", "var(--brand-tone-5)"][i % 4],
             } as React.CSSProperties
           }
         />
@@ -212,7 +211,7 @@ export function Checker({
   initialDrawId,
   wide = false,
 }: {
-  draws: Draw[];
+  draws: CheckerDraw[];
   initialDrawId?: string;
   wide?: boolean;
 }) {
@@ -223,6 +222,8 @@ export function Checker({
     published[0];
   const [kind, setKind] = useState<Kind>(initial?.kind || "dominical");
   const [drawId, setDrawId] = useState(initial?.id || "");
+  const [year, setYear] = useState(initial?.date.slice(0, 4) || "");
+  const [month, setMonth] = useState(initial?.date.slice(5, 7) || "");
   const [ticket, setTicket] = useState<"billete" | "chance">("billete");
   const [number, setNumber] = useState("");
   const [fractions, setFractions] = useState(1);
@@ -233,12 +234,21 @@ export function Checker({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<CheckResult | null>(null);
-  const available = published.filter((draw) => draw.kind === kind);
+  const available = published
+    .filter((draw) => draw.kind === kind)
+    .sort((a, b) => b.date.localeCompare(a.date) || b.number.localeCompare(a.number));
+  const availableYears = Array.from(new Set(available.map((draw) => draw.date.slice(0, 4))));
+  const availableMonths = Array.from(new Set(
+    available
+      .filter((draw) => !year || draw.date.startsWith(`${year}-`))
+      .map((draw) => draw.date.slice(5, 7)),
+  )).sort((a, b) => b.localeCompare(a));
+  const periodDraws = available.filter(
+    (draw) => (!year || draw.date.startsWith(`${year}-`)) && (!month || draw.date.slice(5, 7) === month),
+  );
   const selected = available.find((draw) => draw.id === drawId);
   const digits = ticket === "chance" ? 2 : selected?.billDigits || 4;
-  const hasExtras = selected?.rules.some(
-    (r) => r.ticket === ticket && ["letters", "series-folio"].includes(r.match),
-  );
+  const hasExtras = selected?.hasExtras[ticket];
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setError("");
@@ -290,9 +300,9 @@ export function Checker({
           <h2>Comprueba tu número</h2>
           <p>Selecciona tu boleto y el sorteo para empezar.</p>
         </div>
-        <Badge className="free-badge" variant="soft" color="blue" radius="full">
+        <span className="free-badge">
           GRATIS
-        </Badge>
+        </span>
       </div>
       <form onSubmit={submit}>
         <div className="ticket-tabs" role="group" aria-label="Tipo de boleto">
@@ -329,65 +339,85 @@ export function Checker({
               <span className="select-leading-icon" aria-hidden="true">
                 <DrawIcon kind={kind} size={19} />
               </span>
-              <Select.Root
+              <select
+                className="checker-select-trigger"
                 value={kind}
-                onValueChange={(value) => {
+                aria-label="Tipo de sorteo"
+                onChange={(event) => {
+                  const value = event.target.value;
                   const nextKind = value as Kind;
                   setKind(nextKind);
-                  setDrawId(
-                    published.find((d) => d.kind === nextKind)?.id || "",
-                  );
+                  const nextDraw = published
+                    .filter((d) => d.kind === nextKind)
+                    .sort((a, b) => b.date.localeCompare(a.date))[0];
+                  setDrawId(nextDraw?.id || "");
+                  setYear(nextDraw?.date.slice(0, 4) || "");
+                  setMonth(nextDraw?.date.slice(5, 7) || "");
                   setNumber("");
                   setError("");
                 }}
               >
-                <Select.Trigger
-                  className="checker-select-trigger"
-                  aria-label="Tipo de sorteo"
-                  variant="ghost"
-                  radius="large"
-                />
-                <Select.Content
-                  className="checker-select-content"
-                  position="popper"
-                  sideOffset={8}
-                >
-                  {Object.entries(KINDS).map(([key, value]) => (
-                    <Select.Item key={key} value={key}>
-                      {value.name}
-                    </Select.Item>
-                  ))}
-                </Select.Content>
-              </Select.Root>
+                {Object.entries(KINDS).map(([key, value]) => (
+                  <option key={key} value={key}>{value.name}</option>
+                ))}
+              </select>
             </div>
           </label>
-          <label>
-            Fecha del sorteo
-            <div className="select-wrap select-wrap-radix select-wrap-date">
-              <Select.Root value={drawId} onValueChange={setDrawId}>
-                <Select.Trigger
+          <div className="checker-date-field">
+            <span>Fecha del sorteo</span>
+            <div className="checker-date-selects">
+              <div className="select-wrap select-wrap-radix select-wrap-date">
+                <select
                   className="checker-select-trigger"
-                  aria-label="Fecha del sorteo"
-                  placeholder="Sin resultados"
+                  aria-label="Año del sorteo"
+                  value={year}
                   disabled={!available.length}
-                  variant="ghost"
-                  radius="large"
-                />
-                <Select.Content
-                  className="checker-select-content"
-                  position="popper"
-                  sideOffset={8}
+                  onChange={(event) => {
+                    const nextYear = event.target.value;
+                    const nextDraw = available.find((draw) => draw.date.startsWith(`${nextYear}-`));
+                    setYear(nextYear);
+                    setMonth("");
+                    setDrawId(nextDraw?.id || "");
+                  }}
                 >
-                  {available.map((d) => (
-                    <Select.Item key={d.id} value={d.id}>
-                      {dateLabel(d.date, true)}
-                      {d.isDemo ? " · demo" : ""}
-                    </Select.Item>
-                  ))}
-                </Select.Content>
-              </Select.Root>
+                  {availableYears.map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </div>
+              <div className="select-wrap select-wrap-radix select-wrap-date">
+                <select
+                  className="checker-select-trigger"
+                  aria-label="Mes del sorteo"
+                  value={month}
+                  disabled={!available.length || !year}
+                  onChange={(event) => {
+                    const nextMonth = event.target.value;
+                    const nextDraw = available.find((draw) => draw.date.startsWith(`${year}-${nextMonth}`));
+                    setMonth(nextMonth);
+                    setDrawId(nextDraw?.id || "");
+                  }}
+                >
+                  <option value="">Todos los meses</option>
+                  {availableMonths.map((value) => <option key={value} value={value}>{new Intl.DateTimeFormat("es-PA", { month: "short", timeZone: "UTC" }).format(new Date(Date.UTC(2020, Number(value) - 1, 1)))}</option>)}
+                </select>
+              </div>
+              <div className="select-wrap select-wrap-radix select-wrap-date">
+              <select
+                className="checker-select-trigger"
+                aria-label="Día y sorteo"
+                value={drawId}
+                disabled={!available.length}
+                onChange={(event) => setDrawId(event.target.value)}
+              >
+                {!available.length && <option value="">Sin resultados</option>}
+                {periodDraws.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {dateLabel(d.date, true)} · N.º {d.number}{d.isDemo ? " · demo" : ""}
+                  </option>
+                ))}
+              </select>
+              </div>
             </div>
-          </label>
+          </div>
         </div>
         <label className="number-label" htmlFor="ticket-number">
           El número de tu {ticket}
@@ -485,13 +515,10 @@ export function Checker({
             Aún no hay resultados publicados para este sorteo.
           </p>
         )}
-        <Button
+        <button
           className="button button-lime checker-submit"
           disabled={loading || !selected}
           type="submit"
-          variant="solid"
-          color="blue"
-          size="3"
         >
           {loading ? (
             <>
@@ -503,7 +530,7 @@ export function Checker({
               Comprobar mi número <ArrowRight size={20} weight="duotone" />
             </>
           )}
-        </Button>
+        </button>
         <div className="checker-footnote">
           <ShieldCheck size={14} weight="duotone" />
           {selected?.isDemo

@@ -10,7 +10,7 @@ export function Footer() {
           <div>
             <Brand light />
             <p>
-              La emoción de tu número.
+              Resultados claros, a la vista.
               <br />
               La tranquilidad de comprobarlo.
             </p>
@@ -22,8 +22,9 @@ export function Footer() {
             <Link href="/como-funciona">Cómo funciona</Link>
           </div>
           <div>
-            <span className="footer-heading">SOBRE SUERTE</span>
+          <span className="footer-heading">LOTERIAPANAMAHOY.SITE</span>
             <Link href="/contacto">Contacto</Link>
+            <a href="mailto:soporte@loteriapanamahoy.site">Soporte por correo</a>
             <Link href="/privacidad">Privacidad y cookies</Link>
             <Link href="/terminos">Términos de uso</Link>
           </div>
@@ -44,11 +45,11 @@ export function Footer() {
           </div>
         </div>
         <div className="footer-bottom">
-          <span>© {new Date().getFullYear()} Suerte Panamá</span>
+          <span>© {new Date().getFullYear()} loteriapanamahoy.site</span>
           <span>
             Hecho con <Heart size={12} weight="duotone" /> para Panamá
           </span>
-          <a href="/admin">Administración</a>
+          <span>Información independiente · Confirma en la LNB</span>
         </div>
       </div>
     </footer>

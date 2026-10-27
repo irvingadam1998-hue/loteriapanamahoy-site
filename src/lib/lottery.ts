@@ -366,7 +366,30 @@ export type Draw = Omit<DrawInput, "id"> & {
   isDemo: boolean;
   createdAt: string;
   updatedAt: string;
+  views?: number;
 };
+export type CheckerDraw = Pick<
+  Draw,
+  "id" | "kind" | "status" | "date" | "number" | "billDigits" | "isDemo"
+> & { hasExtras: Record<Rule["ticket"], boolean> };
+/** Strip ticket payout details that the browser checker never renders. */
+export function checkerDrawData(draws: Draw[]): CheckerDraw[] {
+  return draws
+    .filter((draw) => draw.status === "published")
+    .map((draw) => ({
+      id: draw.id,
+      kind: draw.kind,
+      status: draw.status,
+      date: draw.date,
+      number: draw.number,
+      billDigits: draw.billDigits,
+      isDemo: draw.isDemo,
+      hasExtras: {
+        billete: draw.rules.some((rule) => rule.ticket === "billete" && ["letters", "series-folio"].includes(rule.match)),
+        chance: draw.rules.some((rule) => rule.ticket === "chance" && ["letters", "series-folio"].includes(rule.match)),
+      },
+    }));
+}
 export const checkSchema = z.object({
   drawId: z.string().min(1).max(80),
   ticket: z.enum(["billete", "chance"]),
@@ -478,9 +501,34 @@ export function checkTicket(draw: Draw, input: CheckInput): CheckResult {
     }
     if (match) matches.push(rule);
   }
-  // Within one group only the largest award applies; different groups accumulate.
-  const grouped = new Map<string, Rule>();
+  // A more precise prefix/suffix subsumes shorter derivations for the same
+  // prize. An exact winning number also subsumes all its digit derivations.
+  const exactPrizes = new Set(
+    matches
+      .filter((rule) => rule.match === "exact")
+      .map((rule) => `${rule.ticket}:${rule.prize}`),
+  );
+  const precision = new Map<string, number>();
   for (const rule of matches) {
+    if (rule.match !== "prefix" && rule.match !== "suffix") continue;
+    const prizeKey = `${rule.ticket}:${rule.prize}`;
+    if (exactPrizes.has(prizeKey)) continue;
+    const key = `${prizeKey}:${rule.match}`;
+    precision.set(key, Math.max(precision.get(key) ?? 0, rule.digits));
+  }
+  const eligibleMatches = matches.filter((rule) => {
+    if (rule.match !== "prefix" && rule.match !== "suffix") return true;
+    const prizeKey = `${rule.ticket}:${rule.prize}`;
+    if (exactPrizes.has(prizeKey)) return false;
+    return (
+      rule.digits === precision.get(`${prizeKey}:${rule.match}`)
+    );
+  });
+
+  // Within one configured group only the largest award applies; independent
+  // matches, such as prefixes and suffixes, can accumulate.
+  const grouped = new Map<string, Rule>();
+  for (const rule of eligibleMatches) {
     // Old built-in plans used one group per numbered prize (e.g. billete-0),
     // which accidentally discarded printed derivation rows for real draws.
     const oldBuiltInGroup =

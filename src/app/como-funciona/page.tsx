@@ -1,10 +1,14 @@
 import Link from "next/link";
 import { ArrowRight } from "@phosphor-icons/react/dist/ssr/ArrowRight";
+import { publicSocialMetadata } from "@/lib/seo";
+const guideTitle = "Cómo comprobar un billete o chance en Panamá";
+const guideDescription =
+  "Aprende a consultar sorteos de Panamá, conservar los ceros iniciales y entender las coincidencias de tu billete o chance.";
 export const metadata = {
   alternates: { canonical: "/como-funciona" },
-  title: "Cómo comprobar tu billete o chance",
-  description:
-    "Aprende a comprobar billetes y chances de la lotería panameña, conservar ceros iniciales y entender coincidencias y premios.",
+  title: guideTitle,
+  description: guideDescription,
+  ...publicSocialMetadata(guideTitle, guideDescription, "/como-funciona"),
 };
 export default function GuidePage() {
   return (
@@ -21,10 +25,10 @@ export default function GuidePage() {
             <div>
               <h2>Encuentra tu sorteo</h2>
               <p>
-                Busca la modalidad y la fecha impresas en tu boleto. En Suerte
-                Panamá puedes consultar Dominical, Miércolito, Gordito del
-                Zodíaco, Extraordinario y sorteos especiales que haya publicado
-                el administrador.
+                Busca la modalidad y la fecha impresas en tu boleto. En
+                loteriapanamahoy.site puedes consultar Dominical, Miércolito,
+                Gordito del Zodíaco, Extraordinario y sorteos especiales que haya publicado
+                el sitio.
               </p>
               <p>
                 Los resultados se cargan manualmente. La ausencia de un
@@ -67,7 +71,7 @@ export default function GuidePage() {
                 </li>
                 <li>
                   <strong>Sin premio:</strong> no hay coincidencias en el plan
-                  que el administrador confirmó como completo.
+                  registrado y verificado como completo.
                 </li>
                 <li>
                   <strong>Revisión incompleta:</strong> faltan datos del boleto
@@ -80,9 +84,9 @@ export default function GuidePage() {
           <h2>Si tu número tiene premio</h2>
           <p>
             Conserva el boleto original y comprueba los resultados y el importe
-            con la Lotería Nacional de Beneficencia. Suerte Panamá es
-            informativo: no paga premios, no vende lotería y no solicita
-            documentos ni datos bancarios.
+            con la Lotería Nacional de Beneficencia. loteriapanamahoy.site es
+            un sitio independiente que muestra resultados informativos: no paga
+            premios, no vende lotería y no solicita documentos ni datos bancarios.
           </p>
           <p>
             Consulta los requisitos de cobro en{" "}

@@ -143,99 +143,6 @@ test("mobile: no horizontal overflow and full checker flow", async ({
   ).toBe(true);
 });
 
-test("private admin: publish persists, edit, hide draft and revoke session", async ({
-  page,
-  request,
-}) => {
-  const unauthorized = await request.get("/api/admin/draws");
-  expect(unauthorized.status()).toBe(401);
-  const csrf = await request.post("/api/admin/login", {
-    headers: { Origin: "https://other.example" },
-    data: { password: "local-e2e-password-only" },
-  });
-  expect(csrf.status()).toBe(403);
-  await page.goto("/admin");
-  await page
-    .getByLabel("Contraseña de administración")
-    .fill("local-e2e-password-only");
-  await page.getByRole("button", { name: "Entrar al panel" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Tus sorteos, al día." }),
-  ).toBeVisible();
-  await page.getByLabel("Número de sorteo", { exact: true }).fill("E2E-2026");
-  await page.getByLabel("Fecha del sorteo", { exact: true }).fill("2026-01-04");
-  await page.getByLabel("1.º premio", { exact: true }).fill("0012");
-  await page.getByLabel("2.º premio", { exact: true }).fill("3456");
-  await page.getByLabel("3.º premio", { exact: true }).fill("7890");
-  await page.getByLabel("Enlace de la fuente").fill("https://www.lnb.gob.pa/");
-  await page.getByLabel("Estado de publicación").selectOption("published");
-  await page.getByRole("button", { name: "Guardar y publicar" }).click();
-  await expect(page.locator(".save-message")).toContainText("Sorteo publicado");
-  await page.screenshot({
-    path: "test-results/admin-desktop.png",
-    fullPage: true,
-  });
-  const detail = await page
-    .getByRole("link", { name: "Ver resultado" })
-    .getAttribute("href");
-  await page.reload();
-  await page.getByRole("button", { name: /Dominical.*E2E-2026/ }).click();
-  await expect(page.getByLabel("1.º premio", { exact: true })).toHaveValue(
-    "0012",
-  );
-  const id = detail!.split("/").pop()!;
-  const pending = await request.post("/api/check", {
-    data: { drawId: id, ticket: "billete", number: "9999", fractions: 1 },
-  });
-  expect((await pending.json()).status).toBe("incomplete");
-  const unpriced = await request.post("/api/check", {
-    data: { drawId: id, ticket: "billete", number: "0012", fractions: 1 },
-  });
-  const unpricedResult = await unpriced.json();
-  expect(unpricedResult.status).toBe("won");
-  expect(unpricedResult.unknownPrizes).toHaveLength(0);
-  expect(unpricedResult.totalCents).toBe(210700);
-  expect(unpricedResult.verified).toBe(false);
-  await page.locator("summary").filter({ hasText: "Plan de premios" }).click();
-  await page
-    .getByRole("checkbox", { name: /He verificado el plan completo/ })
-    .check();
-  await page.getByRole("button", { name: "Guardar y publicar" }).click();
-  await expect(page.locator(".save-message")).toContainText("Sorteo publicado");
-  const priced = await request.post("/api/check", {
-    data: { drawId: id, ticket: "billete", number: "0012", fractions: 2 },
-  });
-  const pricedResult = await priced.json();
-  expect(pricedResult.totalCents).toBe(421400);
-  expect(pricedResult.verified).toBe(true);
-  await page.getByLabel("1.º premio", { exact: true }).fill("0023");
-  await expect(
-    page.getByRole("checkbox", { name: /He verificado el plan completo/ }),
-  ).not.toBeChecked();
-  await page.getByRole("button", { name: "Guardar y publicar" }).click();
-  await expect(page.locator(".save-message")).toContainText("Sorteo publicado");
-  const publicPage = await request.get(detail!);
-  expect(publicPage.status()).toBe(200);
-  await page.getByLabel("Estado de publicación").selectOption("draft");
-  await page.getByRole("button", { name: "Guardar sorteo" }).click();
-  await expect(page.locator(".save-message")).toContainText(
-    "Borrador guardado",
-  );
-  expect((await request.get(detail!)).status()).toBe(404);
-  const cookie = (await page.context().cookies()).find(
-    (c) => c.name === "suerte_admin",
-  )!;
-  expect(cookie.httpOnly).toBe(true);
-  expect(cookie.sameSite).toBe("Strict");
-  await page.getByRole("button", { name: "Salir", exact: true }).click();
-  await expect(
-    page.getByRole("heading", { name: "Bienvenido de nuevo." }),
-  ).toBeVisible();
-  const revoked = await request.get("/api/admin/draws", {
-    headers: { Cookie: `suerte_admin=${cookie.value}` },
-  });
-  expect(revoked.status()).toBe(401);
-});
 
 test("public routes, unpublished lookup and malformed check input", async ({
   request,
@@ -250,11 +157,13 @@ test("public routes, unpublished lookup and malformed check input", async ({
     "/robots.txt",
     "/sitemap.xml",
     "/ads.txt",
-    "/icon.svg",
+    "/icon-lph-192.png",
   ]) {
     expect((await request.get(route)).status(), route).toBe(200);
   }
   expect((await request.get("/resultados/does-not-exist")).status()).toBe(404);
+  for (const route of ["/admin", "/api/admin/draws", "/api/admin/login", "/api/admin/logout", "/api/admin/mfa/verify"])
+    expect((await request.get(route)).status(), route).toBe(404);
   expect(
     (
       await request.post("/api/check", {

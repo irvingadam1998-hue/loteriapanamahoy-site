@@ -19,7 +19,7 @@ export function Header() {
       <div className="utility-bar">
         <div className="container">
           <span>
-            RESULTADOS Y COMPROBACIÓN <span aria-hidden="true">/</span> PANAMÁ
+            RESULTADOS INFORMATIVOS <span aria-hidden="true">/</span> PANAMÁ
           </span>
           <span>Consulta gratuita · Sin registro</span>
         </div>

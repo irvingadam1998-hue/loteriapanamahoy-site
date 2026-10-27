@@ -4,15 +4,13 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import Database from "libsql";
+import { NextRequest } from "next/server";
 import { demoDraws } from "../src/lib/demo";
+import { POST as recordViewRequest } from "../src/app/api/draws/[id]/views/route";
 import {
   getDraws,
   getDraw,
-  saveDraw,
-  consumeAttempt,
-  createSession,
-  hasSession,
-  removeSession,
+  recordDrawView,
 } from "../src/lib/db";
 
 const directory = mkdtempSync(path.join(tmpdir(), "suerte-db-regression-"));
@@ -57,13 +55,11 @@ after(() => {
   rmSync(directory, { recursive: true, force: true });
 });
 
-test("opens existing SQLite results and persists edits through the replacement driver", async () => {
-  assert.deepEqual(await getDraw(original.id), original);
-  const edited = await saveDraw({ ...original, first: "0012" });
-  assert.equal((await getDraw(original.id))?.first, "0012");
-  assert.equal(edited.createdAt, original.createdAt);
+test("opens existing SQLite results and reads external edits", async () => {
+  assert.deepEqual(await getDraw(original.id), { ...original, views: 0 });
   const secondConnection = new Database(filename);
   try {
+    secondConnection.prepare("UPDATE draws SET body=? WHERE id=?").run(JSON.stringify({ ...original, first: "0012" }), original.id);
     const row = secondConnection
       .prepare("SELECT body FROM draws WHERE id=?")
       .get(original.id) as { body: string };
@@ -77,31 +73,48 @@ test("opens existing SQLite results and persists edits through the replacement d
   } finally {
     secondConnection.close();
   }
+  assert.equal((await getDraw(original.id))?.first, "0012");
 });
 
-test("preserves private drafts and prevents duplicate sorteo numbers", async () => {
-  const draft = await saveDraw({
-    ...original,
-    id: undefined,
-    number: "PRIVATE-01",
-    status: "draft",
-  });
+test("keeps drafts out of public results", async () => {
+  const draft = { ...original, id: "private-draft", number: "PRIVATE-01", status: "draft" as const };
+  const connection = new Database(filename);
+  connection.prepare("INSERT INTO draws(id,kind,date,number,status,body) VALUES(?,?,?,?,?,?)").run(draft.id, draft.kind, draft.date, draft.number, draft.status, JSON.stringify(draft));
+  connection.close();
   assert.equal(await getDraw(draft.id), undefined);
-  assert.ok((await getDraws(true)).some((draw) => draw.id === draft.id));
-  await assert.rejects(
-    () => saveDraw({ ...original, id: undefined }),
-    /UNIQUE/,
-  );
+  assert.ok(!(await getDraws()).some((draw) => draw.id === draft.id));
 });
 
-test("session persistence and login attempt limits work without node:sqlite", async () => {
-  await createSession("active-test-session", Date.now() + 60000);
-  assert.equal(await hasSession("active-test-session"), true);
-  await removeSession("active-test-session");
-  assert.equal(await hasSession("active-test-session"), false);
-  await createSession("expired-test-session", Date.now() - 1000);
-  assert.equal(await hasSession("expired-test-session"), false);
-  assert.equal(await consumeAttempt("test-login", 2, 60000), true);
-  assert.equal(await consumeAttempt("test-login", 2, 60000), true);
-  assert.equal(await consumeAttempt("test-login", 2, 60000), false);
+test("counts each anonymous browser once per published draw and keeps the count after edits", async () => {
+  const first = "a".repeat(64);
+  const second = "b".repeat(64);
+  assert.equal(await recordDrawView(original.id, first), 1);
+  assert.equal(await recordDrawView(original.id, first), 1);
+  assert.equal(await recordDrawView(original.id, second), 2);
+  assert.equal((await getDraw(original.id))?.views, 2);
+  const connection = new Database(filename);
+  connection.prepare("UPDATE draws SET body=? WHERE id=?").run(JSON.stringify({ ...original, first: "0033" }), original.id);
+  connection.close();
+  assert.equal((await getDraw(original.id))?.views, 2);
+  assert.equal(await recordDrawView("missing-draw", first), null);
+  assert.equal(await recordDrawView("private-draft", first), null);
+  const scheduled = { ...original, id: "scheduled-draw", number: "SCHED-01", status: "scheduled" as const };
+  const scheduledConnection = new Database(filename);
+  scheduledConnection.prepare("INSERT INTO draws(id,kind,date,number,status,body) VALUES(?,?,?,?,?,?)").run(scheduled.id, scheduled.kind, scheduled.date, scheduled.number, scheduled.status, JSON.stringify(scheduled));
+  scheduledConnection.close();
+  assert.equal(await recordDrawView(scheduled.id, first), 1);
+});
+
+test("view endpoint issues an anonymous cookie and ignores repeat visits", async () => {
+  const url = `http://localhost:3015/api/draws/${original.id}/views`;
+  const context = { params: Promise.resolve({ id: original.id }) };
+  const first = await recordViewRequest(new NextRequest(url, { method: "POST", headers: { origin: "http://localhost:3015" } }), context);
+  assert.equal(first.status, 200);
+  const cookie = first.headers.get("set-cookie")?.split(";")[0];
+  assert.ok(cookie?.startsWith("lph_visitor="));
+  const firstCount = (await first.json()).views;
+  const repeat = await recordViewRequest(new NextRequest(url, { method: "POST", headers: { origin: "http://localhost:3015", cookie } }), context);
+  assert.equal((await repeat.json()).views, firstCount);
+  const crossOrigin = await recordViewRequest(new NextRequest(url, { method: "POST", headers: { origin: "https://otro.example" } }), context);
+  assert.equal(crossOrigin.status, 403);
 });

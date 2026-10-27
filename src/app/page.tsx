@@ -1,17 +1,16 @@
 import Link from "next/link";
 import { ArrowRight } from "@phosphor-icons/react/dist/ssr/ArrowRight";
 import { ArrowUpRight } from "@phosphor-icons/react/dist/ssr/ArrowUpRight";
-import { CalendarBlank } from "@phosphor-icons/react/dist/ssr/CalendarBlank";
 import { CheckCircle } from "@phosphor-icons/react/dist/ssr/CheckCircle";
 import { MagnifyingGlass } from "@phosphor-icons/react/dist/ssr/MagnifyingGlass";
 import { ShieldCheck } from "@phosphor-icons/react/dist/ssr/ShieldCheck";
 import { Ticket } from "@phosphor-icons/react/dist/ssr/Ticket";
 import { Checker } from "@/components/checker";
-import { ResultsBrowser } from "@/components/results-browser";
 import { AdSlot } from "@/components/ads";
-import { NumberBalls, DrawIcon } from "@/components/draw-card";
+import { DrawCard } from "@/components/draw-card";
+import { DrawIcon, DrawTicket } from "@/components/draw-ticket";
 import { getDraws, StorageError } from "@/lib/db";
-import { KINDS, dateLabel, type Draw } from "@/lib/lottery";
+import { KINDS, checkerDrawData, type Draw } from "@/lib/lottery";
 export const dynamic = "force-dynamic";
 export default async function Home() {
   let draws: Draw[] = [];
@@ -23,6 +22,11 @@ export default async function Home() {
     unavailable = true;
   }
   const latest = draws.find((d) => d.status === "published");
+  const latestPerKind = Object.keys(KINDS)
+    .map((kind) => draws.find((draw) => draw.status === "published" && draw.kind === kind))
+    .filter((draw): draw is Draw => !!draw)
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 3);
   const demo = draws.some((d) => d.isDemo);
   return (
     <main id="contenido">
@@ -30,81 +34,30 @@ export default async function Home() {
         <div className="container">
           <div className="home-hero-heading">
             <span className="home-kicker">
-              <span className="live-dot" /> LA LOTERÍA PANAMEÑA, A MANO
+              <span className="live-dot" /> LOTERIAPANAMAHOY.SITE
             </span>
             <h1>
-              Comprueba tu número. <span>Y sigue soñando.</span>
+              Resultados de la <span>lotería de Panamá</span>
             </h1>
             <p>
-              Resultados claros de la Lotería de Panamá y una forma sencilla de
-              revisar tu billete o chance.
+              Revisa los números de cada sorteo y comprueba tu billete o chance.
+              Confirma cualquier premio con la LNB.
             </p>
             <div className="home-hero-proof">
               <span>
                 <ShieldCheck size={16} weight="duotone" /> Gratis y sin registro
               </span>
               <span>
-                <CheckCircle size={16} weight="duotone" /> Datos revisados
+              <CheckCircle size={16} weight="duotone" /> Consulta orientativa
               </span>
             </div>
           </div>
           <div className="home-hero-grid">
-            <Checker draws={draws} wide />
+            <Checker draws={checkerDrawData(draws)} wide />
             <aside className="latest-draw-card">
-              <div className="latest-draw-header">
-                <span className="latest-draw-icon">
-                  {latest ? (
-                    <DrawIcon kind={latest.kind} size={19} />
-                  ) : (
-                    <CalendarBlank size={19} weight="duotone" />
-                  )}
-                </span>
-                <div>
-                  <small>EL ÚLTIMO SORTEO</small>
-                  <strong>
-                    {latest ? KINDS[latest.kind].name : "Resultados"}
-                  </strong>
-                </div>
-                <span className="latest-draw-status">
-                  {latest ? (latest.isDemo ? "DEMO" : "PUBLICADO") : "PRONTO"}
-                </span>
-              </div>
               {latest ? (
                 <>
-                  <p className="latest-draw-date">
-                    Sorteo N.º {latest.number}
-                    <span />
-                    {dateLabel(latest.date, true)}
-                  </p>
-                  <div className="latest-draw-prize-label">PRIMER PREMIO</div>
-                  <NumberBalls number={latest.first} />
-                  <div className="latest-draw-other-prizes">
-                    <span>
-                      <small>2.º premio</small>
-                      <b>{latest.second}</b>
-                    </span>
-                    <span>
-                      <small>3.º premio</small>
-                      <b>{latest.third}</b>
-                    </span>
-                  </div>
-                  <p className="latest-draw-extras">
-                    {latest.letters && (
-                      <span>
-                        Letras <b>{latest.letters}</b>
-                      </span>
-                    )}
-                    {latest.series && (
-                      <span>
-                        Serie <b>{latest.series}</b>
-                      </span>
-                    )}
-                    {latest.folio && (
-                      <span>
-                        Folio <b>{latest.folio}</b>
-                      </span>
-                    )}
-                  </p>
+                  <DrawTicket draw={latest} variant="home" />
                   <Link
                     href={`/resultados/${latest.id}`}
                     className="latest-draw-link"
@@ -115,6 +68,9 @@ export default async function Home() {
                 </>
               ) : (
                 <>
+                  <div className="latest-draw-header">
+                    <span className="latest-draw-status">PRONTO</span>
+                  </div>
                   <h2>Aún no hay sorteos publicados</h2>
                   <p className="latest-draw-date">
                     Cuando agreguemos un resultado, podrás comprobar aquí tu
@@ -137,7 +93,7 @@ export default async function Home() {
               <ShieldCheck size={15} weight="duotone" /> Tu número no se guarda
             </span>
             <span>
-              Somos un servicio independiente. Confirma los premios con la LNB.
+              Sitio independiente: la fuente oficial de resultados es la LNB.
             </span>
             <a href="https://www.lnb.gob.pa/" target="_blank" rel="noreferrer">
               Fuente oficial <ArrowUpRight size={14} weight="duotone" />
@@ -156,8 +112,8 @@ export default async function Home() {
           <div className="demo-notice">
             <span className="demo-tag">MODO DEMOSTRACIÓN</span>
             <span>
-              Los números visibles son ejemplos. Activa datos reales desde el
-              panel al publicar.
+              Los números visibles son ejemplos y no corresponden a resultados
+              oficiales. Consulta la LNB para verificar un sorteo.
             </span>
           </div>
         )}
@@ -174,7 +130,16 @@ export default async function Home() {
               Ver todos <ArrowRight size={15} weight="duotone" />
             </Link>
           </div>
-          <ResultsBrowser draws={draws} compact />
+          {latestPerKind.length ? (
+            <div className="results-grid">
+              {latestPerKind.map((draw) => <DrawCard key={draw.id} draw={draw} />)}
+            </div>
+          ) : (
+            <div className="empty-state">
+              <h3>Los resultados llegan pronto</h3>
+              <p>Aquí aparecerán los sorteos cuando se publiquen.</p>
+            </div>
+          )}
         </section>
         <AdSlot position="bottom" />
         <section className="how-section">
